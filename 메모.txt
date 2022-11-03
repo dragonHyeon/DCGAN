@@ -1,0 +1,16 @@
+plt.imshow(reconstructed_x)
+can't convert cuda:0 device type tensor to numpy. Use Tensor.cpu() to copy the tensor to host memory first.
+plt 들어갈때는 numpy로 바뀌는듯 함. 이전과 마찬가지로 tensor 를 numpy 로 바꾸려면 cpu 에 있어야 함
+또한 numpy로 바꾸려면 gradient 가 있으면 안되므로 gradient 가 있는 tensor 는 detach 할 것
+
+plt에 그림 올리려면 (1, 1, 32, 32) 이면 안됨
+(1, 32, 32)로 바꿔줄 것
+
+torch tensor shape: (c, h, w)
+matplotlib shape: (h, w, c)
+따라서 torch 이미지를 plt 이미지에서 시각화 하려면 채널 위치 수정이 필요 -> plt_x = torch_x.permute(1, 2, 0)
+permute 는 numpy 가 아닌 tensor 의 함수임
+
+plt 에서 채널이 한개인 grayscale 이미지의 경우 color map 에 따라 해당 채널을 시각화 한다. 따라서 해당 color map 을
+gray 로 설정해서 한개의 채널의 값이 gray 에 대해 값이 설정되도록 한다. (안그럴 경우 임의의 color map 에 배정되어서
+예를 들면 초록색 이미지가 나오기도 함)
