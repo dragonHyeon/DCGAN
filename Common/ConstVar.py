@@ -19,8 +19,12 @@ MODE_TEST = 'test'
 DEVICE_CUDA = 'cuda'
 DEVICE_CPU = 'cpu'
 
+# 판별자 참, 거짓 정보
+REAL_LABEL = 1
+FAKE_LABEL = 0
+
 # 하이퍼 파라미터
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.0002
 BATCH_SIZE = 4
 NUM_EPOCH = 20
 
@@ -30,12 +34,18 @@ TRACKING_FREQUENCY = 1
 NUM_PICS_LIST = 10
 
 # 그 외 기본 설정 값
-RESIZE_SIZE = 32
+RESIZE_SIZE = 64
 
 # state 저장시 딕셔너리 키 값
-KEY_STATE_MODEL = 'model'
-KEY_STATE_OPTIMIZER = 'optimizer'
+KEY_STATE_MODEL_G = 'modelG'
+KEY_STATE_MODEL_D = 'modelD'
+KEY_STATE_OPTIMIZER_G = 'optimizerG'
+KEY_STATE_OPTIMIZER_D = 'optimizerD'
 KEY_STATE_EPOCH = 'epoch'
+
+# score 저장시 딕셔너리 키 값
+KEY_SCORE_G = 'scoreG'
+KEY_SCORE_D = 'scoreD'
 
 # 초기 값
 INITIAL_START_EPOCH_NUM = 1

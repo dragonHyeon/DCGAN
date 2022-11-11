@@ -1,5 +1,6 @@
-import torch
 import visdom
+import torch
+import torch.nn as nn
 from copy import deepcopy
 from tqdm import tqdm
 
@@ -9,20 +10,24 @@ from DeepLearning import utils
 
 
 class Trainer:
-    def __init__(self, model, optimizer, loss_fn, train_dataloader, device):
+    def __init__(self, modelG, modelD, optimizerG, optimizerD, loss_fn, train_dataloader, device):
         """
         * 학습 관련 클래스
-        :param model: 학습 시킬 모델
-        :param optimizer: 학습 optimizer
+        :param modelG: 학습 시킬 모델. 생성자
+        :param modelD: 학습 시킬 모델. 판별자
+        :param optimizerG: 생성자 학습 optimizer
+        :param optimizerD: 판별자 학습 optimizer
         :param loss_fn: 손실 함수
         :param train_dataloader: 학습용 데이터로더
         :param device: GPU / CPU
         """
 
         # 학습 시킬 모델
-        self.model = model
+        self.modelG = modelG
+        self.modelD = modelD
         # 학습 optimizer
-        self.optimizer = optimizer
+        self.optimizerG = optimizerG
+        self.optimizerD = optimizerD
         # 손실 함수
         self.loss_fn = loss_fn
         # 학습용 데이터로더
@@ -43,14 +48,23 @@ class Trainer:
         :return: 학습 완료 및 체크포인트 파일 생성됨
         """
 
+        # 학습 중간 중간 생성자로 이미지를 생성하기 위한 샘플 noise z 모음
+        sample_z_collection = torch.randn(size=(20, 100, 1, 1), device=self.device)
+
         # epoch 초기화
         start_epoch_num = ConstVar.INITIAL_START_EPOCH_NUM
+
+        # 각 모델 가중치 초기화
+        self.modelG.apply(weights_init)
+        self.modelD.apply(weights_init)
 
         # 불러올 체크포인트 파일 있을 경우 불러오기
         if checkpoint_file:
             state = utils.load_checkpoint(filepath=checkpoint_file)
-            self.model.load_state_dict(state[ConstVar.KEY_STATE_MODEL])
-            self.optimizer.load_state_dict(state[ConstVar.KEY_STATE_OPTIMIZER])
+            self.modelG.load_state_dict(state[ConstVar.KEY_STATE_MODEL_G])
+            self.modelD.load_state_dict(state[ConstVar.KEY_STATE_MODEL_D])
+            self.optimizerG.load_state_dict(state[ConstVar.KEY_STATE_OPTIMIZER_G])
+            self.optimizerD.load_state_dict(state[ConstVar.KEY_STATE_OPTIMIZER_D])
             start_epoch_num = state[ConstVar.KEY_STATE_EPOCH] + 1
 
         # num epoch 만큼 학습 반복
@@ -63,11 +77,12 @@ class Trainer:
             if (count + 1) % tracking_frequency == 0:
 
                 # 현재 모델을 테스트하기 위한 테스트 객체 생성
-                tester = Tester(model=deepcopy(x=self.model),
+                tester = Tester(modelG=deepcopy(x=self.modelG),
+                                modelD=deepcopy(x=self.modelD),
                                 metric_fn=metric_fn,
                                 test_dataloader=test_dataloader,
                                 device=self.device)
-                tester.running()
+                tester.running(sample_z_collection=sample_z_collection)
 
                 # 체크포인트 저장
                 checkpoint_dir = UtilLib.getNewPath(path=output_dir,
@@ -75,11 +90,12 @@ class Trainer:
                 checkpoint_filepath = UtilLib.getNewPath(path=checkpoint_dir,
                                                          add=ConstVar.CHECKPOINT_FILE_NAME.format(current_epoch_num))
                 utils.save_checkpoint(filepath=checkpoint_filepath,
-                                      model=self.model,
-                                      optimizer=self.optimizer,
+                                      modelG=self.modelG,
+                                      modelD=self.modelD,
+                                      optimizerG=self.optimizerG,
+                                      optimizerD=self.optimizerD,
                                       epoch=current_epoch_num,
-                                      is_best=self._check_is_best(tester=tester,
-                                                                  best_checkpoint_dir=checkpoint_dir))
+                                      is_best=False)
 
                 # 그래프 시각화 진행
                 self._draw_graph(score=tester.score,
@@ -93,7 +109,7 @@ class Trainer:
                                                    add=ConstVar.PICS_FILE_NAME.format(current_epoch_num))
                 utils.save_pics(pics_list=tester.pics_list,
                                 filepath=pics_filepath,
-                                title=self.model.__class__.__name__)
+                                title=self.modelG.__class__.__name__)
 
     def _train(self):
         """
@@ -101,24 +117,48 @@ class Trainer:
         :return: 1 epoch 만큼 학습 진행
         """
 
-        # 모델을 학습 모드로 전환
-        self.model.train()
+        # 각 모델을 학습 모드로 전환
+        self.modelG.train()
+        self.modelD.train()
 
-        # x shape: (N, 3, 32, 32)
+        # x shape: (N, 3, 64, 64)
         # y shape: (N)
         for x in tqdm(self.train_dataloader, desc='train dataloader', leave=False):
+
+            # 현재 배치 사이즈
+            batch_size = x.shape[0]
+
+            # real image label
+            real_label = torch.ones(batch_size, device=self.device)
+            # fake image label
+            fake_label = torch.zeros(batch_size, device=self.device)
+
+            # noise z
+            z = torch.randn(size=(batch_size, 100, 1, 1), device=self.device)
 
             # 텐서를 해당 디바이스로 이동
             x = x.to(self.device)
 
-            # 순전파
-            encoded, decoded, reconstructed_x = self.model(x)
-            loss = self.loss_fn(reconstructed_x, x)
+            # 판별자 학습
+            self.modelD.zero_grad()
+            # real image 로 학습
+            output = self.modelD(x)
+            lossD_real = self.loss_fn(output, real_label)
+            lossD_real.backward()
+            # fake image 로 학습
+            fake_x = self.modelG(z)
+            output = self.modelD(fake_x.detach())
+            lossD_fake = self.loss_fn(output, fake_label)
+            lossD_fake.backward()
+            self.optimizerD.step()
 
-            # 역전파
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+            # 생성자 학습
+            self.modelG.zero_grad()
+            fake_x = self.modelG(z)
+            output = self.modelD(fake_x)
+            lossG = self.loss_fn(output, real_label)
+            lossG.backward()
+            self.optimizerG.step()
 
     def _check_is_best(self, tester, best_checkpoint_dir):
         """
@@ -166,12 +206,29 @@ class Trainer:
             self.vis = visdom.Visdom()
         # 실시간으로 학습 진행 상태 그리기
         try:
-            self.vis.line(Y=torch.Tensor([score]),
-                          X=torch.Tensor([current_epoch_num]),
+            self.vis.line(Y=torch.cat((torch.Tensor([score[ConstVar.KEY_SCORE_G]]).view(-1, 1), torch.Tensor([score[ConstVar.KEY_SCORE_D]]).view(-1, 1)),
+                                      dim=1),
+                          X=torch.cat((torch.Tensor([current_epoch_num]).view(-1, 1), torch.Tensor([current_epoch_num]).view(-1, 1)),
+                                      dim=1),
                           win=self.plt,
                           update='append',
-                          opts=dict(title=title))
+                          opts=dict(title=title,
+                                    legend=['G loss','D loss'],
+                                    showlegend=True))
         except AttributeError:
-            self.plt = self.vis.line(Y=torch.Tensor([score]),
-                                     X=torch.Tensor([current_epoch_num]),
-                                     opts=dict(title=title))
+            self.plt = self.vis.line(Y=torch.cat((torch.Tensor([score[ConstVar.KEY_SCORE_G]]).view(-1, 1), torch.Tensor([score[ConstVar.KEY_SCORE_D]]).view(-1, 1)),
+                                                 dim=1),
+                                     X=torch.cat((torch.Tensor([current_epoch_num]).view(-1, 1), torch.Tensor([current_epoch_num]).view(-1, 1)),
+                                                 dim=1),
+                                     opts=dict(title=title,
+                                               legend=['G loss','D loss'],
+                                               showlegend=True))
+
+
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        nn.init.constant_(m.bias.data, 0)

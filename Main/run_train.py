@@ -126,21 +126,27 @@ def run_program(args):
     from DeepLearning.train import Trainer
     from DeepLearning.test import Tester
     from DeepLearning.dataloader import SIGNSDataset
-    from DeepLearning.model import AutoEncoder
+    from DeepLearning.model import Generator, Discriminator
     from DeepLearning.loss import loss_fn
-    from DeepLearning.metric import l2loss
+    from DeepLearning.metric import bce_loss
 
     # GPU / CPU 설정
     device = ConstVar.DEVICE_CUDA if torch.cuda.is_available() else ConstVar.DEVICE_CPU
 
     # 모델 선언
-    model = AutoEncoder()
-    # 모델을 해당 디바이스로 이동
-    model.to(device)
+    modelG = Generator()
+    modelD = Discriminator()
+    # 각 모델을 해당 디바이스로 이동
+    modelG.to(device)
+    modelD.to(device)
 
     # optimizer 선언
-    optimizer = torch.optim.Adagrad(params=model.parameters(),
-                                    lr=args.learning_rate)
+    optimizerG = torch.optim.Adam(params=modelG.parameters(),
+                                  lr=args.learning_rate,
+                                  betas=(0.5, 0.999))
+    optimizerD = torch.optim.Adam(params=modelD.parameters(),
+                                  lr=args.learning_rate,
+                                  betas=(0.5, 0.999))
 
     # 학습용 데이터로더 선언
     train_dataloader = DataLoader(dataset=SIGNSDataset(data_dir=args.train_data_dir,
@@ -153,8 +159,10 @@ def run_program(args):
                                                       mode_train_test=ConstVar.MODE_TEST))
 
     # 모델 학습 객체 선언
-    trainer = Trainer(model=model,
-                      optimizer=optimizer,
+    trainer = Trainer(modelG=modelG,
+                      modelD=modelD,
+                      optimizerG=optimizerG,
+                      optimizerD=optimizerD,
                       loss_fn=loss_fn,
                       train_dataloader=train_dataloader,
                       device=device)
@@ -165,7 +173,7 @@ def run_program(args):
                     tracking_frequency=args.tracking_frequency,
                     Tester=Tester,
                     test_dataloader=test_dataloader,
-                    metric_fn=l2loss,
+                    metric_fn=bce_loss,
                     checkpoint_file=args.checkpoint_file)
 
 

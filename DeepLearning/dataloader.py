@@ -29,14 +29,14 @@ class SIGNSDataset(Dataset):
         # 모드에 따른 데이터 전처리 방법
         self.transform = {
             ConstVar.MODE_TRAIN: transforms.Compose([
-                transforms.Grayscale(),
                 transforms.Resize(size=ConstVar.RESIZE_SIZE),
-                transforms.ToTensor()
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ]),
             ConstVar.MODE_TEST: transforms.Compose([
-                transforms.Grayscale(),
                 transforms.Resize(size=ConstVar.RESIZE_SIZE),
-                transforms.ToTensor()
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
         }
 

@@ -76,29 +76,36 @@ def run_program(args):
     from Common import ConstVar
     from DeepLearning.test import Tester
     from DeepLearning.dataloader import SIGNSDataset
-    from DeepLearning.model import AutoEncoder
-    from DeepLearning.metric import l2loss
+    from DeepLearning.model import Generator, Discriminator
+    from DeepLearning.metric import bce_loss
 
     # GPU / CPU 설정
     device = ConstVar.DEVICE_CUDA if torch.cuda.is_available() else ConstVar.DEVICE_CPU
 
     # 모델 선언
-    model = AutoEncoder()
-    # 모델을 해당 디바이스로 이동
-    model.to(device)
+    modelG = Generator()
+    modelD = Discriminator()
+    # 각 모델을 해당 디바이스로 이동
+    modelG.to(device)
+    modelD.to(device)
 
     # 테스트용 데이터로더 선언
     test_dataloader = DataLoader(dataset=SIGNSDataset(data_dir=args.test_data_dir,
                                                       mode_train_test=ConstVar.MODE_TEST))
 
     # 모델 테스트 객체 선언
-    tester = Tester(model=model,
-                    metric_fn=l2loss,
+    tester = Tester(modelG=modelG,
+                    modelD=modelD,
+                    metric_fn=bce_loss,
                     test_dataloader=test_dataloader,
                     device=device)
 
+    # 생성자로 이미지를 생성하기 위한 샘플 noise z 모음
+    sample_z_collection = torch.randn(size=(20, 100, 1, 1), device=device)
+
     # 모델 테스트
-    tester.running(checkpoint_file=args.checkpoint_file)
+    tester.running(sample_z_collection=sample_z_collection,
+                   checkpoint_file=args.checkpoint_file)
 
 
 def main():
