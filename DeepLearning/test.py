@@ -48,7 +48,7 @@ class Tester:
         """
         * 테스트 진행
         :param sample_z_collection: 생성자로 이미지를 생성하기 위한 샘플 noise z 모음
-        :return:
+        :return: 이미지 생성 및 score 기록
         """
 
         # 각 모델을 테스트 모드로 전환
@@ -102,6 +102,8 @@ class Tester:
         # 샘플 noise z 모음으로 이미지 생성하기
         generated_image_collection = self.modelG(sample_z_collection)
         self.pics_list = generated_image_collection
+
+        # score 기록
         self.score = {
             ConstVar.KEY_SCORE_G: np.mean(batch_bce_loss_listG),
             ConstVar.KEY_SCORE_D: np.mean(batch_bce_loss_listD)
