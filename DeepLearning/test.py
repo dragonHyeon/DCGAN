@@ -27,7 +27,7 @@ class Tester:
         # GPU / CPU
         self.device = device
 
-    def running(self, sample_z_collection, checkpoint_file=None):
+    def running(self, sample_z_collection=None, checkpoint_file=None):
         """
         * 테스트 셋팅 및 진행
         :param sample_z_collection: 생성자로 이미지를 생성하기 위한 샘플 noise z 모음
@@ -99,9 +99,10 @@ class Tester:
                                     label=real_label)
             batch_bce_loss_listG.append(scoreG)
 
-        # 샘플 noise z 모음으로 이미지 생성하기
-        generated_image_collection = self.modelG(sample_z_collection)
-        self.pics_list = generated_image_collection
+        if sample_z_collection is not None:
+            # 샘플 noise z 모음으로 이미지 생성하기. deepcopy 오류 방지를 위해 detach
+            generated_image_collection = self.modelG(sample_z_collection).detach()
+            self.pics_list = generated_image_collection
 
         # score 기록
         self.score = {

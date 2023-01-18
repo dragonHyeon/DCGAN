@@ -100,12 +100,8 @@ def run_program(args):
                     test_dataloader=test_dataloader,
                     device=device)
 
-    # 생성자로 이미지를 생성하기 위한 샘플 noise z 모음
-    sample_z_collection = torch.randn(size=(20, 100, 1, 1), device=device)
-
     # 모델 테스트
-    tester.running(sample_z_collection=sample_z_collection,
-                   checkpoint_file=args.checkpoint_file)
+    tester.running(checkpoint_file=args.checkpoint_file)
 
 
 def main():

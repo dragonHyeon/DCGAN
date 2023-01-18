@@ -179,9 +179,9 @@ class Trainer:
                 best_tester = deepcopy(x=tester)
                 best_tester.running(checkpoint_file=checkpoint_file)
                 self.best_score = best_tester.score
-            # 없다면 0 으로 초기화
+            # 없다면 임의의 큰 숫자 (100000) 로 초기화
             else:
-                self.best_score = ConstVar.INITIAL_BEST_ACCURACY_ZERO
+                self.best_score = ConstVar.INITIAL_BEST_BCE_LOSS
 
         # best 성능 갱신
         if tester.score < self.best_score:
