@@ -24,6 +24,25 @@ nn.BCEWithLogitsLoss() 이거를 사용하면 input 에 sigmoid 적용시켜줌.
 Discriminator 학습 시킬때 fake image 에 대해서 detach() 해줘야 함. detach 안하면 fake image 만든 generator 에도 가중치 학습이 전달 되는데 그러면 안됨
 Discriminator 는 그저 만들어지 이미지 그 자체만을 보고 학습을 해야지 그걸 만든 generator 에 가지 영향을 주면 안됨.
 generator 학습은 generator 가 discriminator 속이는 과정에서 더 잘 속이는 이미지 만들도록 학습하려 할 때 볼 것임
++ 추가
+backward 할 경우 해당 backward 에 사용된 그래프들은 (retain_graph=False 이기 때문에) 다시 for loop 를 돌며 dataloader 에서 다음 데이터를 받기 전까지는  모두 제거된다
+따라서 .detach() 하지 않는 경우 generator 학습시 해당 generator 를 update 하는데 필요한 그래프들이 discriminator backward 할때 이미 사용되어 사라진 상태이므로 더이상 사용할 수 없게 되어 학습이 진행되지 않는다.
+따라서 애초에 필요도 없는 generator 부분을 discriminator 학습할때 detach 시켜놓는 것이다.
+detach 하지 않을거라면 최소한 retain_graph=True 라도 해놔야 한다 (예상 및 stackoverflow 추천 0 답변)
++ 추가
+discriminator 에서 retain_graph=true 안해줘도 되는 이유는 chatgpt 에 의하면 원래는 해주는게 좋지만 계산해야 하는 graph 의 크기가 작으면 그냥 즉석에서 다시 그래프 생성해서 계산한다고 함
++ 추가
+discriminator 에서 retain_graph=true 안해줘도 되는 이유는 discriminator 에서 두 번의 순전파가 일어나게 되면서 각각의 그래프가 생성되기 때문이다.
+따라서 둘이 개별적인 그래프이고 각각 backward 를 진행해서 그래프가 사라져도 서로에게 영향이 없는것이다.
+chatgpt 답변은 잘못된 답변
++ 추가
+마찬가지로 detach 안한 상태에서 fake_x 를 새로 선언하지 않는다면 오류 발생
+RuntimeError: Trying to backward through the graph a second time (or directly access saved variables after they have already been freed). Saved intermediate values of the graph are freed when you call .backward() or autograd.grad(). Specify retain_graph=True if you need to backward through the graph a second time or if you need to access saved variables after calling backward.
+
+backward 전에는 zero_grad 하더라도 print(self.modelG.main[0].weight.grad[0][0]) 해도 가중치 볼 수 없음.
+None 이기 때문에 (zero_grad 한 뒤로도 0 이 아닌 None 으로 나옴)
+backward 한 번 진행해야 grad 값이 None 이 아닌 어떤 값이 나오고 그 이후에 zero_grad 하면 grad 값이 0 으로 나오는 것이다.
+그리고 그 값은 계속해서 쌓인다 zero_grad 를 하기 전까지는
 
 zero_grad()
 zero_grad 실수로 빼먹었더니 학습 엉망진창으로 진행이 안됐었음.
