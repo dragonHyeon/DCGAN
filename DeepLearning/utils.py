@@ -65,7 +65,9 @@ def save_pics(pics_list, filepath, title):
     """
 
     # plt 로 시각화 할 수 있는 형식으로 변환
-    plt_pics_list = [generated_image.cpu().detach().reshape(-1, 64, 64).permute(1, 2, 0) for generated_image in pics_list]
+    mean = torch.tensor(ConstVar.NORMALIZE_MEAN)
+    std = torch.tensor(ConstVar.NORMALIZE_STD)
+    plt_pics_list = [(generated_image.cpu().detach().reshape(-1, 64, 64) * std[:, None, None] + mean[:, None, None]).permute(1, 2, 0) for generated_image in pics_list]
 
     # plt 에 그리기
     fig, axs = plt.subplots(nrows=4, ncols=5, figsize=(15, 10))
