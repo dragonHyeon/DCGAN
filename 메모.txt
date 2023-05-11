@@ -43,6 +43,7 @@ backward 전에는 zero_grad 하더라도 print(self.modelG.main[0].weight.grad[
 None 이기 때문에 (zero_grad 한 뒤로도 0 이 아닌 None 으로 나옴)
 backward 한 번 진행해야 grad 값이 None 이 아닌 어떤 값이 나오고 그 이후에 zero_grad 하면 grad 값이 0 으로 나오는 것이다.
 그리고 그 값은 계속해서 쌓인다 zero_grad 를 하기 전까지는
+backward 할 때 grad 값이 바뀌게 되는거임
 
 zero_grad()
 zero_grad 실수로 빼먹었더니 학습 엉망진창으로 진행이 안됐었음.
