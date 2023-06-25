@@ -1,4 +1,4 @@
-import os, sys, argparse
+import os, sys, argparse, time
 
 
 def set_path():
@@ -43,19 +43,33 @@ def arguments():
                                      description="* Run this to test the model.")
 
     # parser 인자 목록 생성
-    # 테스트 데이터 디렉터리 설정
-    parser.add_argument("--test_data_dir",
-                        type=str,
-                        help='set test data directory',
-                        default=ConstVar.DATA_DIR_TEST,
-                        dest="test_data_dir")
+    # 생성할 이미지 개수
+    parser.add_argument("--nums_to_generate",
+                        type=int,
+                        help='set number of images to generate',
+                        default=ConstVar.NUM_GENERATION,
+                        dest='nums_to_generate')
 
     # 불러올 체크포인트 파일 경로
     parser.add_argument("--checkpoint_file",
                         type=str,
                         help='set checkpoint file to load if exists',
-                        default=None,
+                        default='C:/dragonhyeon/python_directory/movements/35dcgan/DATA/checkpoint/epoch00020.ckpt',
                         dest='checkpoint_file')
+
+    # 결과물 파일 저장할 디렉터리 위치
+    parser.add_argument("--output_dir",
+                        type=str,
+                        help='set the directory where output files will be saved',
+                        default=ConstVar.OUTPUT_DIR,
+                        dest='output_dir')
+
+    # 생성된 이미지 파일 저장될 폴더명
+    parser.add_argument("--generated_folder_name",
+                        type=str,
+                        help='set generated folder name which generated images going to be saved',
+                        default=time.time(),
+                        dest="generated_folder_name")
 
     # parsing 한거 가져오기
     args = parser.parse_args()
@@ -71,37 +85,32 @@ def run_program(args):
     """
 
     import torch
-    from torch.utils.data import DataLoader
 
     from Common import ConstVar
     from DeepLearning.test import Tester
-    from DeepLearning.dataloader import SIGNSDataset
-    from DeepLearning.model import Generator, Discriminator
-    from DeepLearning.metric import bce_loss
+    from DeepLearning.model import Generator
+    from DeepLearning import utils
 
     # GPU / CPU 설정
     device = ConstVar.DEVICE_CUDA if torch.cuda.is_available() else ConstVar.DEVICE_CPU
 
-    # 모델 선언
-    modelG = Generator()
-    modelD = Discriminator()
-    # 각 모델을 해당 디바이스로 이동
-    modelG.to(device)
-    modelD.to(device)
+    # 체크포인트 파일 불러오기
+    state = utils.load_checkpoint(filepath=args.checkpoint_file)
 
-    # 테스트용 데이터로더 선언
-    test_dataloader = DataLoader(dataset=SIGNSDataset(data_dir=args.test_data_dir,
-                                                      mode_train_test=ConstVar.MODE_TEST))
+    # 모델 선언 및 가중치 불러오기
+    modelG = Generator()
+    modelG.load_state_dict(state[ConstVar.KEY_STATE_MODEL_G])
+    # 모델을 해당 디바이스로 이동
+    modelG.to(device)
 
     # 모델 테스트 객체 선언
     tester = Tester(modelG=modelG,
-                    modelD=modelD,
-                    metric_fn=bce_loss,
-                    test_dataloader=test_dataloader,
                     device=device)
 
     # 모델 테스트
-    tester.running(checkpoint_file=args.checkpoint_file)
+    tester.running(nums_to_generate=args.nums_to_generate,
+                   output_dir=args.output_dir,
+                   generated_folder_name=args.generated_folder_name)
 
 
 def main():

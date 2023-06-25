@@ -1,111 +1,103 @@
 import torch
-import numpy as np
-from tqdm import tqdm
+from torchvision import transforms
 
 from Common import ConstVar
-from DeepLearning import utils
+from Lib import UtilLib, DragonLib
 
 
 class Tester:
-    def __init__(self, modelG, modelD, metric_fn, test_dataloader, device):
+    def __init__(self, modelG, device):
         """
         * 테스트 관련 클래스
         :param modelG: 테스트 할 모델. 생성자
-        :param modelD: 테스트 할 모델. 판별자
-        :param metric_fn: 학습 성능 체크하기 위한 metric
-        :param test_dataloader: 테스트용 데이터로더
         :param device: GPU / CPU
         """
 
         # 테스트 할 모델
         self.modelG = modelG
-        self.modelD = modelD
-        # 학습 성능 체크하기 위한 metric
-        self.metric_fn = metric_fn
-        # 테스트용 데이터로더
-        self.test_dataloader = test_dataloader
         # GPU / CPU
         self.device = device
 
-    def running(self, sample_z_collection=None, checkpoint_file=None):
+    def running(self, nums_to_generate, output_dir, generated_folder_name):
         """
         * 테스트 셋팅 및 진행
-        :param sample_z_collection: 생성자로 이미지를 생성하기 위한 샘플 noise z 모음
-        :param checkpoint_file: 불러올 체크포인트 파일
+        :param nums_to_generate: 생성할 이미지 개수
+        :param output_dir: 결과물 파일 저장할 디렉터리 위치
+        :param generated_folder_name: 생성된 이미지 파일 저장될 폴더명
         :return: 테스트 수행됨
         """
 
-        # 불러올 체크포인트 파일 있을 경우 불러오기
-        if checkpoint_file:
-            state = utils.load_checkpoint(filepath=checkpoint_file)
-            self.modelG.load_state_dict(state[ConstVar.KEY_STATE_MODEL_G])
-            self.modelD.load_state_dict(state[ConstVar.KEY_STATE_MODEL_D])
+        # 생성할 이미지 개수
+        self.nums_to_generate = nums_to_generate
 
         # 테스트 진행
-        self._test(sample_z_collection=sample_z_collection)
+        fake_x_batch = self._test()
 
-    def _test(self, sample_z_collection):
+        # standardization 하는데 사용된 std, mean 값
+        mean = torch.tensor(ConstVar.NORMALIZE_MEAN)
+        std = torch.tensor(ConstVar.NORMALIZE_STD)
+
+        for num, fake_x in enumerate(fake_x_batch):
+
+            # 시각화를 위해 standardization 한 거 원래대로 되돌리기, 값 범위 0 에서 1 로 제한 및 PIL image 로 변환
+            fake_x_pil = self._convert_img(fake_x=fake_x, mean=mean, std=std)
+
+            # 결과물 이미지 저장
+            generated_img_dir = UtilLib.getNewPath(path=output_dir, add=ConstVar.OUTPUT_DIR_SUFFIX_GENERATED_IMG.format(generated_folder_name))
+            generated_img_filepath = UtilLib.getNewPath(path=generated_img_dir, add=ConstVar.GENERATED_IMG_FILE_NAME.format(num + 1))
+            self._save_pics(fake_x_pil=fake_x_pil, filepath=generated_img_filepath)
+
+    def _test(self):
         """
         * 테스트 진행
-        :param sample_z_collection: 생성자로 이미지를 생성하기 위한 샘플 noise z 모음
-        :return: 이미지 생성 및 score 기록
+        :return: 이미지 생성
         """
 
-        # 각 모델을 테스트 모드로 전환
+        # 모델을 테스트 모드로 전환
         self.modelG.eval()
-        self.modelD.eval()
 
-        # 배치 마다의 BCE loss 담을 리스트
-        batch_bce_loss_listG = list()
-        batch_bce_loss_listD = list()
+        # 이미지 생성
+        z = torch.randn(size=(self.nums_to_generate, 100, 1, 1), device=self.device)
+        fake_x_batch = self.modelG(z)
 
-        # 생성된 이미지 담을 리스트
-        self.pics_list = list()
+        return fake_x_batch
 
-        for x in tqdm(self.test_dataloader, desc='test dataloader', leave=False):
+    @staticmethod
+    def _convert_img(fake_x, mean, std):
+        """
+        * normalize (혹은 standardize) 된 데이터를 원래 데이터로 되돌리고 값 범위 0 에서 1 사이로 제한해주며 PIL image 로 바꿔주기
+        :param fake_x: 생성된 이미지
+        :param mean: mean 값
+        :param std: std 값
+        :return: 변환된 형태의 PIL image
+        """
 
-            # 현재 배치 사이즈
-            batch_size = x.shape[0]
+        # tensor 에서 PIL 로 변환시켜주는 함수
+        transform = transforms.ToPILImage()
 
-            # real image label
-            real_label = torch.ones(batch_size, device=self.device)
-            # fake image label
-            fake_label = torch.zeros(batch_size, device=self.device)
+        # 정규화된 데이터 원래 데이터로 돌려놓기
+        fake_x = fake_x.cpu().detach() * std[:, None, None] + mean[:, None, None]
 
-            # noise z
-            z = torch.randn(size=(batch_size, 100, 1, 1), device=self.device)
+        # 값의 범위를 0 에서 1 로 제한
+        fake_x[fake_x > 1] = 1
+        fake_x[fake_x < 0] = 0
 
-            # 텐서를 해당 디바이스로 이동
-            x = x.to(self.device)
+        # PIL image 로 변환
+        fake_x_pil = transform(fake_x)
 
-            # 판별자 real image 순전파
-            output = self.modelD(x)
-            scoreD_real = self.metric_fn(output=output,
-                                         label=real_label)
-            # 판별자 fake image 순전파
-            fake_x = self.modelG(z)
-            output = self.modelD(fake_x)
-            scoreD_fake = self.metric_fn(output=output,
-                                         label=fake_label)
-            # 배치 마다의 판별자 BCE loss 계산
-            scoreD = scoreD_real + scoreD_fake
-            batch_bce_loss_listD.append(scoreD)
+        return fake_x_pil
 
-            # 생성자 순전파
-            fake_x = self.modelG(z)
-            output = self.modelD(fake_x)
-            # 배치 마다의 생성자 BCE loss 계산
-            scoreG = self.metric_fn(output=output,
-                                    label=real_label)
-            batch_bce_loss_listG.append(scoreG)
+    @staticmethod
+    def _save_pics(fake_x_pil, filepath):
+        """
+        * 이미지 파일 저장
+        :param fake_x_pil: 생성된 PIL image 형식의 이미지
+        :param filepath: 저장될 그림 파일 경로
+        :return: 그림 파일 생성됨
+        """
 
-        if sample_z_collection is not None:
-            # 샘플 noise z 모음으로 이미지 생성하기. deepcopy 오류 방지를 위해 detach
-            generated_image_collection = self.modelG(sample_z_collection).detach()
-            self.pics_list = generated_image_collection
+        # 저장하고자 하는 경로의 상위 디렉터리가 존재하지 않는 경우 상위 경로 생성
+        DragonLib.make_parent_dir_if_not_exits(target_path=filepath)
 
-        # score 기록
-        self.score = {
-            ConstVar.KEY_SCORE_G: np.mean(batch_bce_loss_listG),
-            ConstVar.KEY_SCORE_D: np.mean(batch_bce_loss_listD)
-        }
+        # 그림 저장
+        fake_x_pil.save(fp=filepath)

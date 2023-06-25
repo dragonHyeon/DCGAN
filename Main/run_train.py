@@ -75,7 +75,7 @@ def arguments():
     parser.add_argument("--checkpoint_file",
                         type=str,
                         help='set checkpoint file to resume training if exists',
-                        default=None,
+                        default='../DATA/checkpoint/epoch00020.ckpt',
                         dest='checkpoint_file')
 
     # learning rate 설정
@@ -124,7 +124,6 @@ def run_program(args):
 
     from Common import ConstVar
     from DeepLearning.train import Trainer
-    from DeepLearning.test import Tester
     from DeepLearning.dataloader import SIGNSDataset
     from DeepLearning.model import Generator, Discriminator
     from DeepLearning.loss import loss_fn
@@ -163,17 +162,16 @@ def run_program(args):
                       modelD=modelD,
                       optimizerG=optimizerG,
                       optimizerD=optimizerD,
-                      loss_fn=loss_fn,
+                      loss_fn=None,
+                      metric_fn=None,
                       train_dataloader=train_dataloader,
+                      test_dataloader=test_dataloader,
                       device=device)
 
     # 모델 학습
     trainer.running(num_epoch=args.num_epoch,
                     output_dir=args.output_dir,
                     tracking_frequency=args.tracking_frequency,
-                    Tester=Tester,
-                    test_dataloader=test_dataloader,
-                    metric_fn=bce_loss,
                     checkpoint_file=args.checkpoint_file)
 
 
