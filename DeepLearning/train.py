@@ -323,7 +323,7 @@ class Trainer:
         # plt 에 맞게 (N, C, H, W) -> (N, H, W, C) 변환
         mean = torch.tensor(ConstVar.NORMALIZE_MEAN)
         std = torch.tensor(ConstVar.NORMALIZE_STD)
-        plt_pics_list = [(generated_image.cpu().detach().reshape(-1, 64, 64) * std[:, None, None] + mean[:, None, None]).permute(1, 2, 0) for generated_image in generated_image_collection]
+        plt_pics_list = [(generated_image.cpu().detach().reshape(-1, ConstVar.RESIZE_SIZE, ConstVar.RESIZE_SIZE) * std[:, None, None] + mean[:, None, None]).permute(1, 2, 0) for generated_image in generated_image_collection]
 
         # 시각화 진행
         fig, axs = plt.subplots(nrows=4, ncols=5, figsize=(15, 10))

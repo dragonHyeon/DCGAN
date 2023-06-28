@@ -37,14 +37,14 @@ class Tester:
         mean = torch.tensor(ConstVar.NORMALIZE_MEAN)
         std = torch.tensor(ConstVar.NORMALIZE_STD)
 
-        for num, fake_x in enumerate(fake_x_batch):
+        for num, fake_x in enumerate(iterable=fake_x_batch, start=1):
 
             # 시각화를 위해 standardization 한 거 원래대로 되돌리기, 값 범위 0 에서 1 로 제한 및 PIL image 로 변환
             fake_x_pil = self._convert_img(fake_x=fake_x, mean=mean, std=std)
 
             # 결과물 이미지 저장
             generated_img_dir = UtilLib.getNewPath(path=output_dir, add=ConstVar.OUTPUT_DIR_SUFFIX_GENERATED_IMG.format(generated_folder_name))
-            generated_img_filepath = UtilLib.getNewPath(path=generated_img_dir, add=ConstVar.GENERATED_IMG_FILE_NAME.format(num + 1))
+            generated_img_filepath = UtilLib.getNewPath(path=generated_img_dir, add=ConstVar.GENERATED_IMG_FILE_NAME.format(num))
             self._save_pics(fake_x_pil=fake_x_pil, filepath=generated_img_filepath)
 
     def _test(self):
